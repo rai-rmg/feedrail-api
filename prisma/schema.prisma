@@ -44,6 +44,9 @@ model SocialAccount {
 model Post {
   id        String   @id @default(cuid())
   content   String
+  
+  mediaUrls String[] 
+  
   status    String   // "QUEUED", "PROCESSING", "COMPLETED", "FAILED"
   results   Json?
   targets   Json?    // Liste des plateformes visées ["twitter", "linkedin"]
