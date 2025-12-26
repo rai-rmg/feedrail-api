@@ -46,10 +46,10 @@ graph LR
 
 Before running FeedRail, ensure you have:
 
-* **Node.js 18+** installed.
-* **PostgreSQL**: A local instance or a cloud provider (Supabase, Neon, Railway).
-* **Upstash Account**: Required for QStash (Message Queue). The free tier is sufficient for development.
-* **Ngrok** (or Localtunnel): **Required for local development** to allow QStash to hit your local API.
+- **Node.js 18+** installed.
+- **PostgreSQL**: A local instance or a cloud provider (Supabase, Neon, Railway).
+- **Upstash Account**: Required for QStash (Message Queue). The free tier is sufficient for development.
+- **Ngrok** (or Localtunnel): **Required for local development** to allow QStash to hit your local API.
 
 ---
 
@@ -126,20 +126,20 @@ npx prisma db push
 Since we use Webhooks/Queues, standard `localhost:3000` is not enough.
 
 1. **Start Next.js:**
+
 ```bash
 npm run dev
 
 ```
 
+1. **Start Ngrok** (in a separate terminal):
 
-2. **Start Ngrok** (in a separate terminal):
 ```bash
 ngrok http 3000
 
 ```
 
-
-3. **Update .env:**
+1. **Update .env:**
 Copy the Ngrok URL (e.g., `https://a1b2.ngrok-free.app`) and paste it into `APP_URL` in your `.env` file. Restart the Next.js server if needed.
 
 ---
