@@ -1,0 +1,53 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  apiKey    String   @unique
+  brands    Brand[] 
+  createdAt DateTime @default(now())
+}
+
+model Brand {
+  id             String   @id @default(cuid())
+  name           String   
+  clientRefId    String? 
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  socialAccounts SocialAccount[]
+  posts          Post[]
+  createdAt      DateTime @default(now())
+  
+  @@unique([userId, name])
+}
+
+model SocialAccount {
+  id           String   @id @default(cuid())
+  provider     String   // "facebook", "twitter", "linkedin"
+  platformId   String   
+  accessToken  String   // ATTENTION : Doit être stocké chiffré !
+  refreshToken String?  
+  brandId      String
+  brand        Brand    @relation(fields: [brandId], references: [id])
+  
+  @@unique([brandId, provider]) 
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  content   String
+  status    String   // "QUEUED", "PROCESSING", "COMPLETED", "FAILED"
+  results   Json?
+  targets   Json?    // Liste des plateformes visées ["twitter", "linkedin"]
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id])
+  createdAt DateTime @default(now())
+}
