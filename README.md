@@ -259,7 +259,3 @@ We want to support **every** social platform. We welcome Pull Requests!
 ## 📄 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
-
-```
-
-```
