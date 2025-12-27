@@ -2,26 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma"; // Notre singleton
 import { qstash } from "@/lib/queue"; // Notre client QStash configuré
 
-export async function POST(req: NextRequest) {
+interface AuthenticatedRequest extends NextRequest {
+  user?: { id: string; email: string };
+}
+
+export async function POST(req: AuthenticatedRequest) {
   try {
-    // ---------------------------------------------------------
-    // 1. AUTHENTIFICATION & SÉCURITÉ
-    // ---------------------------------------------------------
-    const apiKey = req.headers.get("x-api-key");
-    
-    if (!apiKey) {
-      return NextResponse.json({ error: "Missing x-api-key header" }, { status: 401 });
-    }
-
-    // On identifie le développeur (User) grâce à sa clé
-    const user = await prisma.user.findUnique({
-      where: { apiKey },
-      select: { id: true } // On ne récupère que l'ID pour optimiser
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "Invalid API Key" }, { status: 401 });
-    }
+    // Authentification gérée par middleware
+    const user = req.user!;
 
     // ---------------------------------------------------------
     // 2. VALIDATION DE LA REQUÊTE
@@ -80,24 +68,37 @@ export async function POST(req: NextRequest) {
     // C'est ici que la magie opère. On envoie l'ID du post à notre worker.
     // QStash va appeler notre API worker de manière asynchrone.
     
-    const workerUrl = `${process.env.APP_URL}/api/workers/publish`;
+    const workerUrl = `${req.nextUrl.origin}/api/workers/publish`;
 
-    try {
-      await qstash.publishJSON({
-        url: workerUrl,
-        body: { postId: post.id },
-        // Options avancées possibles :
-        // delay: 3600, // Pour programmer dans le futur (1h)
-        retries: 3,    // Réessayer 3 fois si le worker plante
-      });
-    } catch (queueError) {
-      console.error("⚠️ Failed to queue job in QStash:", queueError);
-      // En cas d'erreur critique de l'infra (QStash down), on met à jour la DB
+    // En développement, QStash ne permet pas les URLs localhost. On simule la queue.
+    const isLocalhost = workerUrl.includes('localhost') || workerUrl.includes('127.0.0.1') || workerUrl.includes('::1');
+    if (process.env.NODE_ENV !== 'production' && isLocalhost) {
+      console.log(`🚀 Simulating queue for post ${post.id} (localhost detected)`);
+      // En dev, on marque directement comme COMPLETED pour les tests
       await prisma.post.update({
         where: { id: post.id },
-        data: { status: "FAILED", results: { error: "Queueing failed" } }
+        data: { status: "COMPLETED", results: { simulated: true, message: "Simulated in dev mode" } }
       });
-      return NextResponse.json({ error: "Failed to queue post" }, { status: 500 });
+    } else {
+      console.log(`🚀 Queueing post ${post.id} for processing at ${workerUrl}`);
+
+      try {
+        await qstash.publishJSON({
+          url: workerUrl,
+          body: { postId: post.id },
+          // Options avancées possibles :
+          // delay: 3600, // Pour programmer dans le futur (1h)
+          retries: 3,    // Réessayer 3 fois si le worker plante
+        });
+      } catch (queueError) {
+        console.error("⚠️ Failed to queue job in QStash:", queueError);
+        // En cas d'erreur critique de l'infra (QStash down), on met à jour la DB
+        await prisma.post.update({
+          where: { id: post.id },
+          data: { status: "FAILED", results: { error: "Queueing failed" } }
+        });
+        return NextResponse.json({ error: "Failed to queue post" }, { status: 500 });
+      }
     }
 
     // ---------------------------------------------------------
