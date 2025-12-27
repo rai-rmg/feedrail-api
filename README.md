@@ -1,14 +1,14 @@
 # 🚂 FeedRail API
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Next.js](https://img.shields.io/badge/Next.js-15_(App_Router)-black)
+![Next.js](https://img.shields.io/badge/Next.js-16_(App_Router)-black)
 ![Prisma](https://img.shields.io/badge/Prisma-ORM-5a67d8)
 ![QStash](https://img.shields.io/badge/Upstash-QStash-green)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
 
 **The Open Source, Self-Hosted Social Media Middleware.**
 
-FeedRail is a headless API that unifies social networks (X/Twitter, LinkedIn, Facebook, etc.) into a single, standardized interface. It handles authentication storage, API rate limits, and asynchronous publishing queues for you.
+FeedRail is a headless API that unifies social networks (currently Meta/Facebook and Instagram) into a single, standardized interface. It handles authentication storage, API rate limits, and asynchronous publishing queues for you.
 
 > **Why FeedRail?** Building social integrations is hard. APIs change, tokens expire, and serverless functions time out when uploading video. FeedRail abstracts this complexity behind a standard JSON API.
 
@@ -40,6 +40,8 @@ graph LR
     Worker -->|6. Update Result| DB
 ```
 
+**Note:** Currently, only Meta (Facebook and Instagram) platforms are implemented. Support for Twitter, LinkedIn, and others is planned for future releases.
+
 ---
 
 ## 🛠 Prerequisites
@@ -50,6 +52,26 @@ Before running FeedRail, ensure you have:
 - **PostgreSQL**: A local instance or a cloud provider (Supabase, Neon, Railway).
 - **Upstash Account**: Required for QStash (Message Queue). The free tier is sufficient for development.
 - **Ngrok** (or Localtunnel): **Required for local development** to allow QStash to hit your local API.
+- **Meta App**: Required for connecting Facebook and Instagram accounts. See setup instructions below.
+
+### Meta App Setup
+
+To enable Facebook and Instagram integrations, you need to create a Meta app and configure it for API access:
+
+1. Go to [Meta for Developers](https://developers.facebook.com/) and log in with your Facebook account.
+2. Click **"My Apps"** > **"Create App"**.
+3. Choose **"Business"** as the app type (or "Consumer" if you prefer).
+4. Select **"None"** for business account (or link if you have one).
+5. Enter your app name (e.g., "FeedRail API") and contact email.
+6. Once created, go to **App Settings** > **Basic** to get your **App ID** and **App Secret**.
+7. Add the **Facebook Login** product:
+   - Go to **Products** > **Facebook Login** > **Settings**.
+   - Add your redirect URI: `https://your-ngrok-id.ngrok-free.app/api/v1/social-accounts/callback` (replace with your actual Ngrok URL).
+8. For Instagram support, add the **Instagram Basic Display** product and configure permissions.
+9. Request permissions: `pages_manage_posts`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish` (review process may apply).
+10. Copy the **App ID**, **App Secret**, and **Redirect URI** to your `.env` file.
+
+**Note:** Meta apps require review for production use. For development, some permissions may work without review.
 
 ---
 
@@ -103,6 +125,14 @@ QSTASH_NEXT_SIGNING_KEY="..."
 
 ```
 
+**Meta/Facebook API (For social account connections):**
+
+```env
+META_APP_ID="your_meta_app_id"
+META_APP_SECRET="your_meta_app_secret"
+META_REDIRECT_URI="https://your-ngrok-id.ngrok-free.app/api/v1/social-accounts/callback"
+```
+
 **App Configuration:**
 
 ```env
@@ -117,11 +147,24 @@ APP_URL="[https://your-ngrok-id.ngrok-free.app](https://your-ngrok-id.ngrok-free
 Initialize the database schema with Prisma:
 
 ```bash
-npx prisma db push
-
+npx prisma migrate dev --name init
 ```
 
-### 5. Start Local Server (with Tunneling)
+If you have existing migrations, apply them:
+
+```bash
+npx prisma migrate deploy
+```
+
+### 5. Seed the Database (Optional)
+
+Populate the database with sample data:
+
+```bash
+npm run seed
+```
+
+### 6. Start Local Server (with Tunneling)
 
 Since we use Webhooks/Queues, standard `localhost:3000` is not enough.
 
@@ -154,43 +197,103 @@ feedrail-api/
 │   ├── prisma.ts         # DB Client Singleton
 │   ├── crypto.ts         # AES-256 Encryption logic
 │   ├── queue.ts          # QStash Client
-│   └── providers/        # THE "RAILS" (Social Adapters)
+│   └── rails/            # THE "RAILS" (Social Adapters)
 │       ├── interface.ts  # Standard Interface
 │       ├── factory.ts    # Adapter Selector
-│       └── twitter.ts    # Twitter Implementation
+│       └── meta.ts       # Meta (Facebook/Instagram) Implementation
 ├── app/
 │   └── api/
 │       ├── v1/
-│       │   ├── auth/     # OAuth Connect & Callbacks
+│       │   ├── brands/   # Brand Management
 │       │   ├── posts/    # Public API (Producer)
+│       │   ├── social-accounts/ # Social Account Connections
 │       └── workers/      # Private API (Consumer / QStash Handler)
 
 ```
 
 ---
 
-## 🔌 API Documentation
+## � Available Scripts
+
+After installation, you can run the following commands:
+
+- `npm run dev`: Start the development server.
+- `npm run build`: Build the application for production.
+- `npm run start`: Start the production server.
+- `npm run lint`: Run ESLint to check code quality.
+- `npm run seed`: Seed the database with initial data.
+
+---
+
+## �🔌 API Documentation
 
 FeedRail is designed for Multi-Tenant use (Agencies/SaaS).
 **Hierarchy:** `User` (Developer) -> `Brand` (End Client) -> `SocialAccount`.
 
-### 1. Connect a Social Account
+**Authentication:** All API requests require an `x-api-key` header with your User API key.
 
-*Since FeedRail is headless, you request an auth URL and redirect your user.*
+### 1. Create a Brand
 
-**Request:**
-`GET /api/v1/auth/connect?provider=twitter&brandId=YOUR_BRAND_ID`
+Create a new brand for organizing social accounts and posts.
+
+**Endpoint:** `POST /api/v1/brands`
+**Headers:** `x-api-key: YOUR_USER_API_KEY`
+
+**Body:**
+
+```json
+{
+  "name": "My Brand",
+  "clientRefId": "optional-client-reference"
+}
+```
 
 **Response:**
 
 ```json
-{ "url": "[https://twitter.com/i/oauth2/authorize?response_type=code](https://twitter.com/i/oauth2/authorize?response_type=code)&..." }
-
+{
+  "success": true,
+  "data": {
+    "id": "br_clq123...",
+    "name": "My Brand",
+    "clientRefId": "optional-client-reference",
+    "userId": "user_123"
+  }
+}
 ```
 
-*User flow: Your App -> FeedRail Auth URL -> Social Network -> FeedRail Callback -> Your App.*
+### 2. Connect a Social Account
 
-### 2. Publish a Post
+Connect a Meta (Facebook/Instagram) account to a brand via OAuth.
+
+**Endpoint:** `POST /api/v1/social-accounts`
+**Headers:** `x-api-key: YOUR_USER_API_KEY`
+
+**Body:**
+
+```json
+{
+  "provider": "facebook",
+  "code": "oauth_code_from_meta",
+  "brandId": "br_clq123..."
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "sa_123",
+    "provider": "facebook",
+    "platformId": "page_id",
+    "brandId": "br_clq123..."
+  }
+}
+```
+
+### 3. Publish a Post
 
 Send a single request to post to multiple platforms for a specific brand.
 
@@ -202,7 +305,7 @@ Send a single request to post to multiple platforms for a specific brand.
 ```json
 {
   "brandId": "br_clq123...",
-  "platforms": ["twitter", "linkedin"],
+  "platforms": ["facebook", "instagram"],
   "content": "Hello world! This is posted via FeedRail 🚂",
   "mediaUrls": ["[https://example.com/image.jpg](https://example.com/image.jpg)"]
 }
@@ -236,8 +339,8 @@ Since processing is asynchronous, poll this endpoint or use Webhooks (Coming Soo
   "id": "post_789",
   "status": "COMPLETED",
   "results": {
-    "twitter": { "id": "123", "url": "[https://twitter.com/](https://twitter.com/)..." },
-    "linkedin": { "error": "Token expired" }
+    "facebook": { "id": "123", "url": "https://facebook.com/..." },
+    "instagram": { "error": "Token expired" }
   }
 }
 
