@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 import { createRail } from "@/lib/rails";
 import { RailResult } from "@/lib/rails/types";
+import { Prisma } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
   try {
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
       where: { id: postId },
       data: {
         status: allSuccess ? "COMPLETED" : "FAILED",
-        results
+        results: results as unknown as Prisma.InputJsonValue
       }
     });
 
