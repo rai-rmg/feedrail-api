@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma"; // Notre singleton
 import { qstash } from "@/lib/queue"; // Notre client QStash configuré
+import { POST_STATUSES } from "@/lib/constants";
 
 interface AuthenticatedRequest extends NextRequest {
   user?: { id: string; email: string };
@@ -57,7 +58,7 @@ export async function POST(req: AuthenticatedRequest) {
         targets: platforms, 
         mediaUrls: mediaUrls || [],
         brandId: brand.id,
-        status: "QUEUED",
+        status: POST_STATUSES.QUEUED,
         results: {} // Vide pour l'instant
       }
     });
@@ -77,7 +78,7 @@ export async function POST(req: AuthenticatedRequest) {
       // En dev, on marque directement comme COMPLETED pour les tests
       await prisma.post.update({
         where: { id: post.id },
-        data: { status: "COMPLETED", results: { simulated: true, message: "Simulated in dev mode" } }
+        data: { status: POST_STATUSES.COMPLETED, results: { simulated: true, message: "Simulated in dev mode" } }
       });
     } else {
       console.log(`🚀 Queueing post ${post.id} for processing at ${workerUrl}`);
@@ -95,7 +96,7 @@ export async function POST(req: AuthenticatedRequest) {
         // En cas d'erreur critique de l'infra (QStash down), on met à jour la DB
         await prisma.post.update({
           where: { id: post.id },
-          data: { status: "FAILED", results: { error: "Queueing failed" } }
+          data: { status: POST_STATUSES.FAILED, results: { error: "Queueing failed" } }
         });
         return NextResponse.json({ error: "Failed to queue post" }, { status: 500 });
       }

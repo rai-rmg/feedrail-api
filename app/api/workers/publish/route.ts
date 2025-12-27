@@ -4,6 +4,7 @@ import { decrypt } from "@/lib/crypto";
 import { createRail } from "@/lib/rails";
 import { RailResult } from "@/lib/rails/types";
 import { Prisma } from "@prisma/client";
+import { POST_STATUSES } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    if (post.status !== "QUEUED") {
+    if (post.status !== POST_STATUSES.QUEUED) {
       return NextResponse.json({ error: "Post not in QUEUED status" }, { status: 400 });
     }
 
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     await prisma.post.update({
       where: { id: postId },
       data: {
-        status: allSuccess ? "COMPLETED" : "FAILED",
+        status: allSuccess ? POST_STATUSES.COMPLETED : POST_STATUSES.FAILED,
         results: results as unknown as Prisma.InputJsonValue
       }
     });
