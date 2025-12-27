@@ -24,6 +24,8 @@
 > 2. **Prisma 7 :** L'initialisation du client dans `lib/prisma.ts` doit inclure l'objet `datasources` explicitement pour éviter les erreurs de build sur Vercel.
 > 3. **Erreurs :** Toujours typer les erreurs et retourner des réponses JSON standardisées (`{ success: boolean, data?: any, error?: string }`).
 > 4. **Sécurité :** Ne jamais exposer de tokens ou de secrets dans les logs. Toujours vérifier la propriété (`ownership`) d'une marque par rapport à l'utilisateur avant une action.
+> 5. **Middleware d'Authentification :** Utiliser le middleware global (`middleware.ts`) pour valider automatiquement le header `x-api-key` sur toutes les routes API (`/api/*`). Les routes n'ont pas besoin de gérer l'auth manuellement – accéder à `req.user` directement.
+> 6. **Constantes au lieu de Chaînes :** Éviter les chaînes de caractères en dur dans le code. Définir des constantes typées dans `lib/constants.ts` (ex. : `POST_STATUSES.QUEUED` au lieu de `"QUEUED"`). Cela prévient les erreurs de frappe et facilite la maintenance.
 > 
 > 
 
